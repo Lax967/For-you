@@ -11,8 +11,20 @@
             margin: 0; min-height: 100vh; display: flex; flex-direction: column; 
             align-items: center; justify-content: center;
             overflow-y: auto; 
+            overflow-x: hidden;
             perspective: 1500px;
             padding: 40px 20px;
+        }
+
+        /* --- SPARKS TRAIL CANVAS --- */
+        #trailCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 999999; /* Keeps trail on absolute top layer */
         }
 
         /* --- INTRO STYLES --- */
@@ -32,7 +44,6 @@
         /* --- DASHBOARD STYLES --- */
         #dashboard { display: none; opacity: 0; transition: opacity 1s ease; text-align: center; width: 100%; }
         
-        /* Fixed full viewport backdrop for floating emojis */
         #emojiCanvas {
             position: fixed;
             top: 0;
@@ -168,6 +179,8 @@
 </head>
 <body>
 
+    <canvas id="trailCanvas"></canvas>
+
     <div class="intro-container" id="intro">
         <h1 class="greeting-title">To my Dearest Love...</h1>
         <div class="rose-container">
@@ -292,7 +305,7 @@
             if (!audioCtx || audioCtx.state === 'suspended') return;
             let osc = audioCtx.createOscillator();
             let gain = audioCtx.createGain();
-            let filter = biquadFilter = audioCtx.createBiquadFilter();
+            let filter = audioCtx.createBiquadFilter();
 
             osc.connect(filter);
             filter.connect(gain);
@@ -392,6 +405,81 @@
                 }, 50);
             }, 800);
         }
+
+        /* --- MAGIC CURSOR / SWIPE SPARKLE SYSTEM --- */
+        (function initMagicCursor() {
+            const canvas = document.getElementById('trailCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            let sparkles = [];
+
+            class Sparkle {
+                constructor(x, y) {
+                    this.x = x;
+                    this.y = y;
+                    this.size = Math.random() * 4 + 2;
+                    this.speedX = (Math.random() - 0.5) * 2.5;
+                    this.speedY = (Math.random() - 0.5) * 2.5 - 0.5; // Slight drift up
+                    this.alpha = 1;
+                    this.decay = Math.random() * 0.02 + 0.02;
+                    // Alternates soft warm pinks and golds
+                    this.color = Math.random() > 0.5 ? `hsla(343, 100%, 75%, ` : `hsla(45, 100%, 70%, `;
+                }
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    this.alpha -= this.decay;
+                    return this.alpha > 0;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = this.alpha;
+                    ctx.fillStyle = this.color + this.alpha + ')';
+                    ctx.shadowBlur = 6;
+                    ctx.shadowColor = '#ff477e';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            function addSparkles(x, y, count = 2) {
+                for (let i = 0; i < count; i++) {
+                    sparkles.push(new Sparkle(x, y));
+                }
+            }
+
+            // Mouse Move Event
+            window.addEventListener('mousemove', (e) => {
+                addSparkles(e.clientX, e.clientY, 1);
+            });
+
+            // Touch Swipe Handling for Phones
+            window.addEventListener('touchmove', (e) => {
+                if (e.touches.length > 0) {
+                    addSparkles(e.touches[0].clientX, e.touches[0].clientY, 2);
+                }
+            }, { passive: true });
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                sparkles = sparkles.filter(s => {
+                    const active = s.update();
+                    if (active) s.draw();
+                    return active;
+                });
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
 
         /* --- DASHBOARD BACKGROUND EMOJI FLOATER SYSTEM --- */
         function initDashboardBackground() {
